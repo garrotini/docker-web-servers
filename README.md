@@ -2,6 +2,12 @@
 
 Containerizing static web pages using Nginx and Apache2.
 
+Firstly, I just cared about `http`, and then `https`.
+
+It was my very first time building docker images and running my own containers based on my "self-created images".
+
+A self-signed cert and its private key are committed in this repo too — it's a localhost learning project, not production, so no secrets are exposed and it doesn't need strict security hygiene.
+
 ### http simple webpage app containerized
 
 #### nginx-site
@@ -23,7 +29,7 @@ the default place for html files in apache2 is different from nginx:
 build it from Dockerfile:
 `docker build -t apache-site .`
 
-run it at `http://localhost:8081`:
+run it at `http://localhost:8082`:
 `docker run -p 8082:80 apache-site`
 
 #### running both services simultaneously
@@ -51,7 +57,7 @@ openssl req -x509 -newkey rsa:2048 -noenc \
 
 (checkout these 2 pages from Linuxize.com: [how to use openssl](https://linuxize.com/post/how-to-use-openssl/) and [creating a self signed ssl certificate](https://linuxize.com/post/creating-a-self-signed-ssl-certificate/))
 
-#### nginx https
+#### nginx-https
 
 check [nginx configure https servers](https://nginx.org/en/docs/http/configuring_https_servers.html), and create a `default.conf` file to config the nginx:
 
@@ -94,19 +100,38 @@ without the `-k` flag,
 
 (a 301 redirect configuration in the port 80 to 443 would also be possible!)
 
-#### apache2 https
+#### apache-https
 
-after getting inside the `apache-site` container created before and read the `httpd-ssl.conf`, I found that:
-
+after `docker exec -it apache-site sh`, I checked the config files:
+`httpd.conf` had the ssl module, its session cache module and the ssl vhost include **commented out**:
+```
+#LoadModule socache_shmcb_module modules/mod_socache_shmcb.so
+#LoadModule ssl_module modules/mod_ssl.so
+#Include conf/extra/httpd-ssl.conf
+```
+while `httpd-ssl.conf` (bundled, ready to use) points to:
 ```
 SSLCertificateFile "/usr/local/apache2/conf/server.crt"
 SSLCertificateKeyFile "/usr/local/apache2/conf/server.key"
 ```
 
-so, I will send my cert and key to those places, and also eliminate some of the lines that are commented on `httpd-ssl.conf` with the `sed` command!
+so, I will send my cert and key to those places, and also uncomment those lines that are commented on `httpd.conf` with the `sed` command!
+
+run the image build:
+`docker build -t apache-https .`
+
+then run the container at ports 8085 and 8086:
+`docker run -p 8085:80 -p 8086:443 --name apache-https apache-https`
 
 confirm everything is working with the `curl` command.
-sometimes the browser complains, and it will get you a warning regarding the "poor certificate".
+`curl -sI http://localhost:8085`  -> "200 OK"
+`curl -skI https://localhost:8086`  -> "200 OK"
+
+sometimes the browser "complains", and it will get you a warning regarding the "poor certificate".
+
+why "poor certificate"?
+it's not broken HTTPS, the cert is valid but it is self-signed (it signs itself!) — so its issuer isn't in the browser's trust store and Firefox can't confirm who's behind localhost:8086 or localhost:8084 (SEC_ERROR_UNKNOWN_ISSUER). `curl -k` is the same thing you do when clicking "Accept the Risk".
+
 
 
 
